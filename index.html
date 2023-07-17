@@ -1,0 +1,260 @@
+<!-- React -->
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js" integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz" crossorigin="anonymous"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+<style>
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css");
+    .options{
+        height: 100%;
+        width: 50%;
+        margin: 10px;
+    }
+    #options .query_component{
+        margin-bottom: 10px;
+    }
+    .query{
+        width: 100%;
+        margin: 10px;
+    }
+    .query textarea{
+        width: 100%;
+        height: 250px;
+    }
+</style>
+
+<div id="root_div"></div>
+
+
+<script type="text/babel">
+
+let baseQuery = {
+    "_source":[],
+    "size":1,
+    "query":{
+        "bool":{
+            "must":[],
+            "filter":[],
+            "should":[],
+            "must_not":[]
+        }
+    }
+}
+
+function QueryComponent({Name,queryName, query, setQuery,Desc}){
+    const [verbs, setVerbs] = React.useState([]);
+    const [selectedVerb,setSelectedVerb] = React.useState('match');
+    const [index,setIndex] = React.useState(0)
+    // const [tempQuery,setTempQuery] = React.useState([]);
+
+    const addVerb=()=>{
+        let newVerb = {
+            content:'',
+            index:verbs.length,
+            name:selectedVerb
+        };
+        // query.query.bool[queryName].push()
+        
+        setVerbs([...verbs,newVerb]);
+    }
+
+    const removeVerb = (index_to_delete,id_in_query) => {
+        setVerbs((prevArray) => prevArray.filter((vrb) => vrb.index !== index_to_delete));
+        setQuery(prevArray => prevArray.filter(obj => obj.id !== id_in_query));
+  };
+
+    const handleSelectChange = (event) => {
+        setSelectedVerb(event.target.value);
+    };
+
+    const handleVerbChange = (idx, event,verb,queryName) => {
+        const { value } = event.target;
+
+        let field_key;
+        let field_value;
+
+        if(value.includes(':')){
+            field_key = value.split(':')[0];
+            field_value = value.split(':')[1];
+        }else {
+            return;
+        }
+       
+        setVerbs((prevVerbs) => prevVerbs.map((verb) => (verb.index === idx ? { ...verb, content: 'customvalue' } : verb)));
+        // console.log(`id:${idx} key:${field_key} value:${field_value}`)
+
+        let newObj ={}
+         if(verb == 'range'){
+            newObj= {
+            'id':idx,
+            'queryName':queryName,
+            'verb':verb,
+            'query': {
+                'range':{
+                    [value.split(':')[0]]:{
+                        'gte':value.split(':')[2],
+                        'lte':value.split(':')[1]
+                    }
+                }
+            }
+             }
+        }else{
+            newObj= {
+            'id':idx,
+            'queryName':queryName,
+            'verb':verb,
+            'key':field_key,
+            'value':field_value,
+            'query':{
+                [verb]:{
+                    [field_key]:field_value
+                }
+            }
+             } 
+        }
+
+        let existingIndex = query.findIndex(obj => obj.id === newObj.id);
+
+        if (existingIndex !== -1) {
+                const updatedQueryArray = query.map((obj, index) => (index === existingIndex ? newObj : obj));
+                setQuery(updatedQueryArray);
+            } else {
+                setQuery(prevArray => [...prevArray, newObj]);
+            }
+
+    };
+
+    return (
+        <div>
+            <h3>{Name}</h3>
+            <p>{Desc}</p>
+        <select name="verb" id="verb" value={selectedVerb} onChange={handleSelectChange}>
+        <option value="match">MATCH</option> 
+        <option value="term">TERM</option> 
+        <option value="range">RANGE</option>    
+        </select>
+        <button className="btn" onClick={addVerb}><i class="bi bi-plus-square"></i></button>
+        {verbs.map((vrb)=>{
+            let input = ''
+            if (vrb.name == 'range'){
+                input = <div key={vrb.index} className="input-group">
+                          <input type="text" className="form-control" key={vrb.index} onChange={(event)=>handleVerbChange(`${queryName}_${vrb.name}`+vrb.index,event,vrb.name,queryName)} placeholder="field:LTE:GTE"/>
+                          <div className="input-group-append">
+                          <button className="btn" type="button" onClick={() => removeVerb(vrb.index,`${queryName}_${vrb.name}`+vrb.index)}>
+                            <i class="bi bi-x-square"></i>
+                            </button>
+                        </div>
+                    </div>
+            }else{
+                input = <div key={vrb.index} className="input-group">
+                            <input type="text" className="form-control" key={vrb.index} onChange={(event)=>handleVerbChange(`${queryName}_${vrb.name}`+vrb.index,event,vrb.name,queryName)} placeholder="key:value"/>
+                            <div className="input-group-append">
+                            <button className="btn" onClick={() => removeVerb(vrb.index,`${queryName}_${vrb.name}`+vrb.index)}><i class="bi bi-x-square"></i></button>
+                          </div>
+                        </div>
+            }
+            return(input)
+        })}
+        </div>
+    );
+}
+
+function EsContainer(){
+
+    const [query, setQuery] = React.useState('');
+    const [queryCollector,setQueryCollector] = React.useState([]);
+    const [size,setSize] = React.useState(1);
+    const [min_score,setMinScore] = React.useState(0);
+
+    function generate(){
+    setQuery(JSON.stringify(baseQuery,null,2));
+    let must = [];
+    let filter = [];
+    let should = [];
+    let must_not = [];
+    queryCollector.forEach(query => {
+        switch(query.queryName){
+            case 'should':
+                should.push(query.query)
+            break;
+            case 'must':
+                must.push(query.query)
+            break;
+
+            case 'filter':
+                filter.push(query.query)
+            break;
+
+            case 'must_not':
+                must_not.push(query.query)
+            break;
+        }
+    });
+    baseQuery.query.bool = {'must':must,'should':should,'filter':filter,'must_not':must_not}
+    console.log(baseQuery)
+    baseQuery.size = size;
+    if(min_score != 0){
+        baseQuery.min_score = min_score;
+    }
+    else{
+        delete baseQuery.min_score;
+    }
+    setQuery(JSON.stringify(baseQuery,null,2))
+   }
+
+   const handleInputChange = (event,field) => {
+        const { value } = event.target;
+
+        switch(field){
+            case 'size':
+            setSize(value)
+            break;
+
+            case 'min_score':
+            setMinScore(value)
+            break;
+        }
+
+   };
+
+
+
+    return(
+        <div className="view">
+            <div className="options" id="options">
+
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" id="basic-addon2">Size</span>
+                    </div>
+                     <input onChange={(event)=>handleInputChange(event,'size')} type="number" class="form-control" placeholder="Number of Docs to show . Default '1'"  aria-describedby="basic-addon2"/>
+                </div>
+
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text" id="basic-addon2">Min Score</span>
+                    </div>
+                     <input onChange={(event)=>handleInputChange(event,'min_score')} type="number" class="form-control" placeholder="Docs with min. score. Use '0' to disable this field" aria-describedby="basic-addon2"/>
+                </div>
+
+                <QueryComponent className="query_component" Name='MUST' queryName='must' query={queryCollector} setQuery={setQueryCollector} Desc='AND Condition. Documents must satisfy all the conditions inside this clause to be considered a match.'/>
+                <QueryComponent className="query_component" Name='SHOULD' queryName='should' query={queryCollector} setQuery={setQueryCollector} Desc='OR Condition. At least one of the should clauses should match for the document to be considered relevant'/>
+                <QueryComponent className="query_component" Name='MUST_NOT' queryName='must_not' query={queryCollector} setQuery={setQueryCollector} Desc='NOT Condition. Excludes documents that match the conditions inside this clause from the search results.'/>
+                <QueryComponent className="compquery_componentonent" Name='FILTER' queryName='filter' query={queryCollector} setQuery={setQueryCollector} Desc='Similar to must, but does not affect the scoring and is used for filtering documents based on certain conditions. It acts as a pure inclusion/exclusion filter.' />
+                <button type="button" className="btn btn-secondary" onClick={generate}>Generate</button>
+            </div>
+            <div className="query">
+               
+                <textarea name="query" id="query" value={query} placeholder="Generated Query.." cols="30" rows="30"></textarea>
+            </div>
+        </div>
+    );
+}
+
+    const container = document.getElementById('root_div');
+    const root = ReactDOM.createRoot(container);
+    root.render(<EsContainer/>)
+</script>
